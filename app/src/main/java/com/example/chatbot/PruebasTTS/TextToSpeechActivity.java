@@ -41,6 +41,8 @@ public class TextToSpeechActivity extends AppCompatActivity implements TextToSpe
         });
         etText=findViewById(R.id.etText);
     }
+
+
     @Override
     public void onDestroy() {
         // Don't forget to shutdown!
@@ -90,13 +92,13 @@ public class TextToSpeechActivity extends AppCompatActivity implements TextToSpe
     };
     private void sayText() {
         // Select a random hello.
-       // int helloLength = HELLOS.length;
+        // int helloLength = HELLOS.length;
         //String hello = HELLOS[RANDOM.nextInt(helloLength)];
         mTts.speak(etText.getText().toString(),
                 TextToSpeech.QUEUE_FLUSH,  // Drop all pending entries in the playback queue.
                 null);
     }
-    private void sayText(String text) {
+    public void sayText(String text) {
         mTts.speak(text,
                 TextToSpeech.QUEUE_FLUSH,  // Drop all pending entries in the playback queue.
                 null);
