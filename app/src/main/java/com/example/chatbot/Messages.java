@@ -1,6 +1,9 @@
 package com.example.chatbot;
 
-public class Messages {
+import android.os.Parcel;
+import android.os.Parcelable;
+
+public class Messages implements Parcelable {
     private  String from,message,type;
 
     public  Messages(){
@@ -11,6 +14,24 @@ public class Messages {
         this.message = message;
         this.type = type;
     }
+
+    protected Messages(Parcel in) {
+        from = in.readString();
+        message = in.readString();
+        type = in.readString();
+    }
+
+    public static final Creator<Messages> CREATOR = new Creator<Messages>() {
+        @Override
+        public Messages createFromParcel(Parcel in) {
+            return new Messages(in);
+        }
+
+        @Override
+        public Messages[] newArray(int size) {
+            return new Messages[size];
+        }
+    };
 
     public String getFrom() {
         return from;
@@ -34,5 +55,17 @@ public class Messages {
 
     public void setType(String type) {
         this.type = type;
+    }
+
+    @Override
+    public int describeContents() {
+        return 0;
+    }
+
+    @Override
+    public void writeToParcel(Parcel parcel, int i) {
+        parcel.writeString(from);
+        parcel.writeString(message);
+        parcel.writeString(type);
     }
 }

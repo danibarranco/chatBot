@@ -1,5 +1,6 @@
 package com.example.chatbot;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -7,6 +8,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import android.content.Intent;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.PersistableBundle;
 import android.speech.RecognizerIntent;
 import android.speech.tts.TextToSpeech;
 import android.text.Editable;
@@ -24,6 +26,15 @@ import com.example.chatbot.apibot.ChatterBot;
 import com.example.chatbot.apibot.ChatterBotFactory;
 import com.example.chatbot.apibot.ChatterBotSession;
 import com.example.chatbot.apibot.ChatterBotType;
+import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.Task;
+import com.google.firebase.auth.AuthResult;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -36,7 +47,11 @@ import java.io.OutputStreamWriter;
 import java.io.UnsupportedEncodingException;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.sql.Time;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -50,19 +65,69 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
     private ImageView ivSend;
     private ImageView mic;
     private EditText etMessage;
-    private ArrayList<Messages> messages= new ArrayList<>();
+    private ArrayList<Messages> messages;
     private Messages message;
     private Messages messageBot;
     private  RecyclerView rvList;
     private TextToSpeech mTts;
 
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_chat_with_bot);
-        init();
+        if (savedInstanceState!=null){
+            messages=savedInstanceState.getParcelableArrayList("mensajes");
+        }else {
+            messages=new ArrayList<>();
+        }
+        initLogin();
     }
 
+    @Override
+    public void onSaveInstanceState(@NonNull Bundle outState, @NonNull PersistableBundle outPersistentState) {
+        outState.putParcelableArrayList("mensajes",messages);
+        super.onSaveInstanceState(outState, outPersistentState);
+
+    }
+
+    private void initLogin() {
+        final FirebaseAuth firebaseAuth= FirebaseAuth.getInstance();
+        firebaseAuth.signInWithEmailAndPassword("example2@example.com","example2").addOnCompleteListener(new OnCompleteListener<AuthResult>() {
+            @Override
+            public void onComplete(@NonNull Task<AuthResult> task) {
+                if(task.isSuccessful()){
+                    System.out.println(firebaseAuth.getCurrentUser().getEmail());
+                    init();
+                }else{
+
+                }
+
+            }
+        });
+    }
+
+    private void initUser() {
+        FirebaseDatabase database = FirebaseDatabase.getInstance();
+        final FirebaseAuth firebaseAuth= FirebaseAuth.getInstance();
+        firebaseAuth.createUserWithEmailAndPassword("example3@example.com","example2").addOnCompleteListener(new OnCompleteListener<AuthResult>() {
+            @Override
+            public void onComplete(@NonNull Task<AuthResult> task) {
+                if(task.isSuccessful()){
+                    sayYes();
+                }
+                System.out.println(firebaseAuth.getCurrentUser().getEmail());
+            }
+
+            private void sayYes() {
+                System.out.println("SI");
+
+            }
+        });
+
+
+    }
     private void init() {
         mTts = new TextToSpeech(this,
                 this  // TextToSpeech.OnInitListener
@@ -74,6 +139,7 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
         rvList.setLayoutManager(mManager);
         rvList.setAdapter(adapter);
 
+        adapter.setUserMessagesList(messages);
         etMessage=findViewById(R.id.etMessage);
         ivSend=findViewById(R.id.ivSend);
         ivSend.setVisibility(View.INVISIBLE);
@@ -106,6 +172,7 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
                 String mensaje=etMessage.getText().toString().trim();
                 if(!mensaje.equalsIgnoreCase("")){
                     //Creamos mensaje para recycler
+
                     message=new Messages();
                     message.setType("me");
                     etMessage.setText("");
@@ -201,9 +268,10 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
 
 
     private class TraduceEsEn extends AsyncTask<String, Void, String> {
-
+        String msES,msEN;
         @Override
         protected String doInBackground(String... strings) {
+            msES=strings[0];
             try {
                 return repository.traduceMensajeEsEn(strings[0]);
             } catch (UnsupportedEncodingException e) {
@@ -234,6 +302,14 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
                 e.printStackTrace();
             }
             //Mandamos string en ingles al bot
+            msEN=s;
+            Calendar calendar = Calendar.getInstance(Locale.getDefault());
+            int hour = calendar.get(Calendar.HOUR_OF_DAY);
+            int minute = calendar.get(Calendar.MINUTE);
+            int second = calendar.get(Calendar.SECOND);
+            String time=hour+":"+minute+":"+second;
+            ChatSentence chatSentence= new ChatSentence(msEN,msES,"user",time);
+            saveMessageDB(chatSentence);
             try {
                 new Chat().execute(s);
             } catch (Exception e) {
@@ -242,12 +318,49 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
         }
     }
 
+    private void saveMessageDB(ChatSentence item) {
+        FirebaseDatabase database = FirebaseDatabase.getInstance();
+        DatabaseReference refItem= database.getReference("user/"+FirebaseAuth.getInstance().getCurrentUser().getUid());
+        refItem.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
+                Log.v(TAG, "data changed: " + dataSnapshot.toString());
+            }
+            @Override
+            public void onCancelled(@NonNull DatabaseError databaseError) {
+                Log.v(TAG, "error: " + databaseError.toException());
+            }
+        });
+        Map<String, Object> map = new HashMap<>();
+
+        Calendar calendar = Calendar.getInstance();
+        Date date = calendar.getTime();
+        String day = new SimpleDateFormat("dd").format(date);    // always 2 digits
+        String month = new SimpleDateFormat("MM").format(date);  // always 2 digits
+        String year = new SimpleDateFormat("yyyy").format(date); // 4 digit year
+        String refDate=year+month+day;
+
+        String key = refItem.child(refDate).push().getKey();
+        map.put(refDate+"/" + key, item.toMap());
+        refItem.updateChildren(map).addOnCompleteListener(new OnCompleteListener<Void>() {
+            @Override
+            public void onComplete(@NonNull Task<Void> task) {
+                if (task.isSuccessful()) {
+                    Log.v(TAG, "task succesfull");
+                } else {
+                    Log.v(TAG, task.getException().toString());
+                }
+            }
+        });
+    }
+
     //[{ "detectedLanguage": { "language": "es", "score": 1 },"translations": [{ "text": "Hello","to": "en" }],}],
 
     private class TraduceEnEs extends AsyncTask<String,Void, String> {
-
+        String msES,msEN;
         @Override
         protected String doInBackground(String... strings) {
+            msEN=strings[0];
             try {
                 return repository.traduceMensajeEnEs(strings[0]);
             } catch (UnsupportedEncodingException e) {
@@ -283,6 +396,14 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
             messageBot.setMessage(s);
             messages.add(messageBot);
 
+            msES=s;
+            Calendar calendar = Calendar.getInstance(Locale.getDefault());
+            int hour = calendar.get(Calendar.HOUR_OF_DAY);
+            int minute = calendar.get(Calendar.MINUTE);
+            int second = calendar.get(Calendar.SECOND);
+            String time=hour+":"+minute+":"+second;
+            ChatSentence chatSentence= new ChatSentence(msEN,msES,"bot",time);
+            saveMessageDB(chatSentence);
             //Method for load the recycler with the new bot message
             putBotMessage();
             sayText(s);
