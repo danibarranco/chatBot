@@ -66,4 +66,7 @@ public class ChatSentence {
         return result;
     }
 
+    public void setPropertyValue(String key, String value) {
+
+    }
 }

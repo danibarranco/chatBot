@@ -7,6 +7,7 @@ import android.view.ViewGroup;
 import android.widget.TextView;
 
 
+import com.example.chatbot.ChatSentence;
 import com.example.chatbot.Messages;
 import com.example.chatbot.R;
 
@@ -16,7 +17,7 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageViewHolder>{
-    private List<Messages> userMessagesList;
+    private List<ChatSentence> userMessagesList;
     private LayoutInflater inflater;
 
 
@@ -34,9 +35,9 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
     @Override
     public void onBindViewHolder(@NonNull MessageViewHolder holder, int position) {
         if(userMessagesList!=null){
-            final Messages messages= userMessagesList.get(position);
-            String message=messages.getMessage();
-            String type=messages.getType();
+            final ChatSentence messages= userMessagesList.get(position);
+            String message=messages.getSetenceEs();
+            String type=messages.getTalker();
 
             if(type.equalsIgnoreCase("bot")){
                 holder.receiver.setVisibility(View.VISIBLE);
@@ -50,7 +51,7 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
         }
     }
 
-    public void setUserMessagesList(List<Messages> userMessagesList){
+    public void setUserMessagesList(List<ChatSentence> userMessagesList){
         this.userMessagesList=userMessagesList;
         notifyDataSetChanged();
     }

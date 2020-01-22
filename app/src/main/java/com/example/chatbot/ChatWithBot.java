@@ -65,7 +65,7 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
     private ImageView ivSend;
     private ImageView mic;
     private EditText etMessage;
-    private ArrayList<Messages> messages;
+    private ArrayList<ChatSentence> messages;
     private Messages message;
     private Messages messageBot;
     private  RecyclerView rvList;
@@ -78,20 +78,14 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_chat_with_bot);
         if (savedInstanceState!=null){
-            messages=savedInstanceState.getParcelableArrayList("mensajes");
+           // messages=savedInstanceState.getParcelableArrayList("mensajes");
         }else {
             messages=new ArrayList<>();
         }
         initLogin();
+
+        init();
     }
-
-    @Override
-    public void onSaveInstanceState(@NonNull Bundle outState, @NonNull PersistableBundle outPersistentState) {
-        outState.putParcelableArrayList("mensajes",messages);
-        super.onSaveInstanceState(outState, outPersistentState);
-
-    }
-
     private void initLogin() {
         final FirebaseAuth firebaseAuth= FirebaseAuth.getInstance();
         firebaseAuth.signInWithEmailAndPassword("example2@example.com","example2").addOnCompleteListener(new OnCompleteListener<AuthResult>() {
@@ -99,7 +93,7 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
             public void onComplete(@NonNull Task<AuthResult> task) {
                 if(task.isSuccessful()){
                     System.out.println(firebaseAuth.getCurrentUser().getEmail());
-                    init();
+                    getUserChat();
                 }else{
 
                 }
@@ -108,26 +102,64 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
         });
     }
 
-    private void initUser() {
+    private void getUserChat() {
         FirebaseDatabase database = FirebaseDatabase.getInstance();
-        final FirebaseAuth firebaseAuth= FirebaseAuth.getInstance();
-        firebaseAuth.createUserWithEmailAndPassword("example3@example.com","example2").addOnCompleteListener(new OnCompleteListener<AuthResult>() {
+        final DatabaseReference refItem= database.getReference("user/"+FirebaseAuth.getInstance().getCurrentUser().getUid());
+
+        refItem.addValueEventListener(new ValueEventListener() {
             @Override
-            public void onComplete(@NonNull Task<AuthResult> task) {
-                if(task.isSuccessful()){
-                    sayYes();
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                // This method is called once with the initial value and again
+                // whenever data at this location is updated.
+                Map<String,Map<String,Map<String,Map<String,String>>>> map = new HashMap<>();
+                map.put(dataSnapshot.getKey(), (Map) dataSnapshot.getValue());
+                for (Map<String, Map<String, Map<String,String>>> dias : map.values()) {
+                    System.out.println("clave=" + dias.keySet().toString() + ", valor=" + dias.values().toString());
+                    for (Map<String, Map<String,String>> mensajes : dias.values()) {
+                        System.out.println("clave=" + mensajes.keySet().toString() + ", valor=" + mensajes.values().toString());
+                        for (Map<String,String> mensaje : mensajes.values()) {
+                            System.out.println("clave=" + mensaje.keySet().toString() + ", valor=" + mensaje.values().toString());
+                            //Aqui tendriamos todos los mensajes uno a uno del usuario
+                            ChatSentence chatSentence = new ChatSentence();
+                            for (Map.Entry<String, String> property : mensaje.entrySet()) {
+                                switch (property.getKey()){
+                                    case "talker":
+                                        chatSentence.setTalker(property.getValue());
+                                        break;
+                                    case "sentenceEs":
+                                        chatSentence.setSetenceEs(property.getValue());
+                                        break;
+                                    case "sentenceEn":
+                                        chatSentence.setSentenceEn(property.getValue());
+                                        break;
+                                    case "time":
+                                        chatSentence.setTime(property.getValue());
+                                        break;
+                                }
+                            }
+                            messages.add(chatSentence);
+                        }
+                    }
                 }
-                System.out.println(firebaseAuth.getCurrentUser().getEmail());
+                System.out.println(messages.size()+"-----------"+messages.toString());
+                loadRecycler();
             }
 
-            private void sayYes() {
-                System.out.println("SI");
-
+            @Override
+            public void onCancelled(DatabaseError error) {
+                // Failed to read value
+                Log.w(TAG, "Failed to read value.", error.toException());
             }
         });
+    }
 
+    @Override
+    public void onSaveInstanceState(@NonNull Bundle outState, @NonNull PersistableBundle outPersistentState) {
+       // outState.putParcelableArrayList("mensajes",messages);
+        super.onSaveInstanceState(outState, outPersistentState);
 
     }
+
     private void init() {
         mTts = new TextToSpeech(this,
                 this  // TextToSpeech.OnInitListener
@@ -171,17 +203,9 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
             public void onClick(View view) {
                 String mensaje=etMessage.getText().toString().trim();
                 if(!mensaje.equalsIgnoreCase("")){
-                    //Creamos mensaje para recycler
-
-                    message=new Messages();
-                    message.setType("me");
-                    etMessage.setText("");
-                    message.setMessage(mensaje);
-                    messages.add(message);
                     //Traduccion para el bot
                     new TraduceEsEn().execute(mensaje);
-                    //cargamos recycler
-                    loadRecycler();
+                    etMessage.setText("");
                 }
             }
         });
@@ -310,6 +334,8 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
             String time=hour+":"+minute+":"+second;
             ChatSentence chatSentence= new ChatSentence(msEN,msES,"user",time);
             saveMessageDB(chatSentence);
+            messages.add(chatSentence);
+            loadRecycler();
             try {
                 new Chat().execute(s);
             } catch (Exception e) {
@@ -391,10 +417,6 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
                 e.printStackTrace();
             }
             //Create bot message,traduced to es
-            messageBot=new Messages();
-            messageBot.setType("bot");
-            messageBot.setMessage(s);
-            messages.add(messageBot);
 
             msES=s;
             Calendar calendar = Calendar.getInstance(Locale.getDefault());
@@ -404,6 +426,7 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
             String time=hour+":"+minute+":"+second;
             ChatSentence chatSentence= new ChatSentence(msEN,msES,"bot",time);
             saveMessageDB(chatSentence);
+            messages.add(chatSentence);
             //Method for load the recycler with the new bot message
             putBotMessage();
             sayText(s);
@@ -429,15 +452,8 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
             if(resultCode==RESULT_OK && data!=null) {
                 ArrayList<String> result = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
                 String mensaje=result.get(0);
-                message=new Messages();
-                message.setType("me");
-                etMessage.setText("");
-                message.setMessage(mensaje);
-                messages.add(message);
                 //Traduccion para el bot
                 new TraduceEsEn().execute(mensaje);
-                //cargamos recycler
-                loadRecycler();
             }
         }
     }

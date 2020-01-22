@@ -2,4 +2,6 @@
     <string name="app_name">ChatBot</string>
     <string name="action_settings">Settings</string>
     <string name="btTTS">Go!</string>
+    <string name="labelLogin">LOGIN</string>
+    <string name="btLogin">Go to chat!</string>
 </resources>
