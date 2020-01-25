@@ -51,6 +51,7 @@ import java.sql.Time;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Locale;
@@ -70,21 +71,26 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
     private Messages messageBot;
     private  RecyclerView rvList;
     private TextToSpeech mTts;
-
+    String refDate;
+    private boolean inicio=true;
 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_chat_with_bot);
+        Calendar calendar = Calendar.getInstance();
+        Date date = calendar.getTime();
+        String day = new SimpleDateFormat("dd").format(date);    // always 2 digits
+        String month = new SimpleDateFormat("MM").format(date);  // always 2 digits
+        String year = new SimpleDateFormat("yyyy").format(date); // 4 digit year
+        refDate=year+month+day;
         if (savedInstanceState!=null){
            // messages=savedInstanceState.getParcelableArrayList("mensajes");
         }else {
             messages=new ArrayList<>();
         }
         initLogin();
-
-        init();
     }
     private void initLogin() {
         final FirebaseAuth firebaseAuth= FirebaseAuth.getInstance();
@@ -93,7 +99,7 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
             public void onComplete(@NonNull Task<AuthResult> task) {
                 if(task.isSuccessful()){
                     System.out.println(firebaseAuth.getCurrentUser().getEmail());
-                    getUserChat();
+                    getTodayUserChat();
                 }else{
 
                 }
@@ -102,47 +108,41 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
         });
     }
 
-    private void getUserChat() {
+    private void getTodayUserChat() {
         FirebaseDatabase database = FirebaseDatabase.getInstance();
-        final DatabaseReference refItem= database.getReference("user/"+FirebaseAuth.getInstance().getCurrentUser().getUid());
+        final DatabaseReference refItem= database.getReference("user/"+FirebaseAuth.getInstance().getCurrentUser().getUid()+"/"+refDate);
 
         refItem.addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(DataSnapshot dataSnapshot) {
-                // This method is called once with the initial value and again
-                // whenever data at this location is updated.
-                Map<String,Map<String,Map<String,Map<String,String>>>> map = new HashMap<>();
-                map.put(dataSnapshot.getKey(), (Map) dataSnapshot.getValue());
-                for (Map<String, Map<String, Map<String,String>>> dias : map.values()) {
-                    System.out.println("clave=" + dias.keySet().toString() + ", valor=" + dias.values().toString());
-                    for (Map<String, Map<String,String>> mensajes : dias.values()) {
-                        System.out.println("clave=" + mensajes.keySet().toString() + ", valor=" + mensajes.values().toString());
-                        for (Map<String,String> mensaje : mensajes.values()) {
+                if(inicio){
+                    inicio=false;
+                    messages=new ArrayList<>();
+                    // This method is called once with the initial value and again
+                    // whenever data at this location is updated.
+                    Map<String,Map<String,Map<String, String>>> mensajes = new HashMap<>();
+                    mensajes.put(dataSnapshot.getKey(), (Map) dataSnapshot.getValue());
+                    for (Map<String,Map<String, String>> mensaje : mensajes.values()) {
+                        if(mensaje!=null){
                             System.out.println("clave=" + mensaje.keySet().toString() + ", valor=" + mensaje.values().toString());
                             //Aqui tendriamos todos los mensajes uno a uno del usuario
                             ChatSentence chatSentence = new ChatSentence();
-                            for (Map.Entry<String, String> property : mensaje.entrySet()) {
-                                switch (property.getKey()){
-                                    case "talker":
-                                        chatSentence.setTalker(property.getValue());
-                                        break;
-                                    case "sentenceEs":
-                                        chatSentence.setSetenceEs(property.getValue());
-                                        break;
-                                    case "sentenceEn":
-                                        chatSentence.setSentenceEn(property.getValue());
-                                        break;
-                                    case "time":
-                                        chatSentence.setTime(property.getValue());
-                                        break;
-                                }
+                            for (Map.Entry<String, Map<String, String>> property : mensaje.entrySet()) {
+                                System.out.println(property.getValue());
+                                chatSentence.setTalker(property.getValue().get("talker"));
+                                chatSentence.setSetenceEs(property.getValue().get("sentenceEs"));
+                                chatSentence.setSentenceEn(property.getValue().get("sentenceEn"));
+                                chatSentence.setTime(property.getValue().get("time"));
+                                messages.add(chatSentence);
+                                chatSentence = new ChatSentence();
                             }
-                            messages.add(chatSentence);
                         }
                     }
+                    Collections.sort(messages);
+                    System.out.println(messages.size()+"-----------"+messages.toString());
+                    init();
+                    loadRecycler();
                 }
-                System.out.println(messages.size()+"-----------"+messages.toString());
-                loadRecycler();
             }
 
             @Override
@@ -265,6 +265,7 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
     }
     private void loadRecycler() {
         adapter.setUserMessagesList(messages);
+
         rvList.smoothScrollToPosition(adapter.getItemCount());
         rvList.invalidate();
     }
@@ -331,7 +332,8 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
             int hour = calendar.get(Calendar.HOUR_OF_DAY);
             int minute = calendar.get(Calendar.MINUTE);
             int second = calendar.get(Calendar.SECOND);
-            String time=hour+":"+minute+":"+second;
+            int milisecond =calendar.get(Calendar.MILLISECOND);
+            String time=hour+":"+minute+":"+second+":"+milisecond;
             ChatSentence chatSentence= new ChatSentence(msEN,msES,"user",time);
             saveMessageDB(chatSentence);
             messages.add(chatSentence);
@@ -358,13 +360,6 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
             }
         });
         Map<String, Object> map = new HashMap<>();
-
-        Calendar calendar = Calendar.getInstance();
-        Date date = calendar.getTime();
-        String day = new SimpleDateFormat("dd").format(date);    // always 2 digits
-        String month = new SimpleDateFormat("MM").format(date);  // always 2 digits
-        String year = new SimpleDateFormat("yyyy").format(date); // 4 digit year
-        String refDate=year+month+day;
 
         String key = refItem.child(refDate).push().getKey();
         map.put(refDate+"/" + key, item.toMap());
@@ -423,7 +418,8 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
             int hour = calendar.get(Calendar.HOUR_OF_DAY);
             int minute = calendar.get(Calendar.MINUTE);
             int second = calendar.get(Calendar.SECOND);
-            String time=hour+":"+minute+":"+second;
+            int milisecond =calendar.get(Calendar.MILLISECOND);
+            String time=hour+":"+minute+":"+second+":"+milisecond;
             ChatSentence chatSentence= new ChatSentence(msEN,msES,"bot",time);
             saveMessageDB(chatSentence);
             messages.add(chatSentence);

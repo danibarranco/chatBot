@@ -3,7 +3,7 @@ package com.example.chatbot;
 import java.util.HashMap;
 import java.util.Map;
 
-public class ChatSentence {
+public class ChatSentence implements Comparable<ChatSentence>{
     private String sentenceEn, setenceEs,talker,time;
 
     public ChatSentence() {
@@ -68,5 +68,10 @@ public class ChatSentence {
 
     public void setPropertyValue(String key, String value) {
 
+    }
+
+    @Override
+    public int compareTo(ChatSentence o) {
+        return time.compareTo(o.time);
     }
 }
