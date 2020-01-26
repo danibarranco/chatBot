@@ -14,6 +14,8 @@ import android.speech.tts.TextToSpeech;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -54,6 +56,7 @@ import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 
@@ -66,7 +69,7 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
     private ImageView ivSend;
     private ImageView mic;
     private EditText etMessage;
-    private ArrayList<ChatSentence> messages;
+    private ArrayList<ChatSentence> messages=new ArrayList<>();
     private Messages message;
     private Messages messageBot;
     private  RecyclerView rvList;
@@ -85,28 +88,16 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
         String month = new SimpleDateFormat("MM").format(date);  // always 2 digits
         String year = new SimpleDateFormat("yyyy").format(date); // 4 digit year
         refDate=year+month+day;
-        if (savedInstanceState!=null){
-           // messages=savedInstanceState.getParcelableArrayList("mensajes");
-        }else {
-            messages=new ArrayList<>();
-        }
-        initLogin();
-    }
-    private void initLogin() {
-        final FirebaseAuth firebaseAuth= FirebaseAuth.getInstance();
-        firebaseAuth.signInWithEmailAndPassword("example2@example.com","example2").addOnCompleteListener(new OnCompleteListener<AuthResult>() {
-            @Override
-            public void onComplete(@NonNull Task<AuthResult> task) {
-                if(task.isSuccessful()){
-                    System.out.println(firebaseAuth.getCurrentUser().getEmail());
-                    getTodayUserChat();
-                }else{
+        ivSend=findViewById(R.id.ivSend);
+        ivSend.setVisibility(View.INVISIBLE);
 
-                }
-
-            }
-        });
+        getTodayUserChat();
     }
+    /*
+    * users: example2@example.com-example2
+    *        example3@example.com-example2
+    *
+    * */
 
     private void getTodayUserChat() {
         FirebaseDatabase database = FirebaseDatabase.getInstance();
@@ -117,31 +108,17 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
             public void onDataChange(DataSnapshot dataSnapshot) {
                 if(inicio){
                     inicio=false;
-                    messages=new ArrayList<>();
-                    // This method is called once with the initial value and again
-                    // whenever data at this location is updated.
-                    Map<String,Map<String,Map<String, String>>> mensajes = new HashMap<>();
-                    mensajes.put(dataSnapshot.getKey(), (Map) dataSnapshot.getValue());
-                    for (Map<String,Map<String, String>> mensaje : mensajes.values()) {
-                        if(mensaje!=null){
-                            System.out.println("clave=" + mensaje.keySet().toString() + ", valor=" + mensaje.values().toString());
-                            //Aqui tendriamos todos los mensajes uno a uno del usuario
-                            ChatSentence chatSentence = new ChatSentence();
-                            for (Map.Entry<String, Map<String, String>> property : mensaje.entrySet()) {
-                                System.out.println(property.getValue());
-                                chatSentence.setTalker(property.getValue().get("talker"));
-                                chatSentence.setSetenceEs(property.getValue().get("sentenceEs"));
-                                chatSentence.setSentenceEn(property.getValue().get("sentenceEn"));
-                                chatSentence.setTime(property.getValue().get("time"));
-                                messages.add(chatSentence);
-                                chatSentence = new ChatSentence();
-                            }
-                        }
+                    Iterator<DataSnapshot> iterator=dataSnapshot.getChildren().iterator();
+                    while (iterator.hasNext()){
+                        ChatSentence chatSentence = new ChatSentence();
+                        Map<String,String> property=(Map<String,String>)iterator.next().getValue();
+                        chatSentence.setTalker(property.get("talker"));
+                        chatSentence.setSetenceEs(property.get("sentenceEs"));
+                        chatSentence.setSentenceEn(property.get("sentenceEn"));
+                        chatSentence.setTime(property.get("time"));
+                        messages.add(chatSentence);
                     }
-                    Collections.sort(messages);
-                    System.out.println(messages.size()+"-----------"+messages.toString());
                     init();
-                    loadRecycler();
                 }
             }
 
@@ -153,17 +130,7 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
         });
     }
 
-    @Override
-    public void onSaveInstanceState(@NonNull Bundle outState, @NonNull PersistableBundle outPersistentState) {
-       // outState.putParcelableArrayList("mensajes",messages);
-        super.onSaveInstanceState(outState, outPersistentState);
-
-    }
-
     private void init() {
-        mTts = new TextToSpeech(this,
-                this  // TextToSpeech.OnInitListener
-        );
         repository=new Repository();
         adapter= new MessageAdapter(this );
         rvList = findViewById(R.id.rvList);
@@ -172,9 +139,11 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
         rvList.setAdapter(adapter);
 
         adapter.setUserMessagesList(messages);
+        loadRecycler();
+        mTts = new TextToSpeech(this,
+                this  // TextToSpeech.OnInitListener
+        );
         etMessage=findViewById(R.id.etMessage);
-        ivSend=findViewById(R.id.ivSend);
-        ivSend.setVisibility(View.INVISIBLE);
         mic=findViewById(R.id.mic);
         etMessage.addTextChangedListener(new TextWatcher() {
             @Override
@@ -265,7 +234,6 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
     }
     private void loadRecycler() {
         adapter.setUserMessagesList(messages);
-
         rvList.smoothScrollToPosition(adapter.getItemCount());
         rvList.invalidate();
     }
@@ -458,5 +426,23 @@ public class ChatWithBot extends AppCompatActivity implements TextToSpeech.OnIni
                 TextToSpeech.QUEUE_FLUSH,  // Drop all pending entries in the playback queue.
                 null);
     }
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Inflate the menu; this adds items to the action bar if it is present.
+        getMenuInflater().inflate(R.menu.menu_main, menu);
+        return true;
+    }
 
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        // Handle action bar item clicks here. The action bar will
+        // automatically handle clicks on the Home/Up button, so long
+        // as you specify a parent activity in AndroidManifest.xml.
+        int id = item.getItemId();
+        //noinspection SimplifiableIfStatement
+        if (id == R.id.action_history) {
+            startActivity(new Intent(this,HistorialActivity.class));
+        }
+        return super.onOptionsItemSelected(item);
+    }
 }

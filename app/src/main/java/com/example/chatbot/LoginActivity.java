@@ -44,6 +44,7 @@ public class LoginActivity extends AppCompatActivity {
 
             }
         });
+
     }
 
     private void initRegister(final String email, final String pass) {
